@@ -1,25 +1,60 @@
+#!/usr/bin/env node
 
-$(function() {
-    // allow tab key to be used in the text area
-    $('#input').keydown(function(e) {
-        // http://stackoverflow.com/questions/1738808/keypress-in-jquery-press-tab-inside-textarea-when-editing-an-existing-text/1738888#1738888
-        if (e.keyCode == 9) {
-            var myValue = "\t";
-            var startPos = this.selectionStart;
-            var endPos = this.selectionEnd;
-            var scrollTop = this.scrollTop;
-            this.value = this.value.substring(0, startPos) + myValue + this.value.substring(endPos, this.value.length);
-            this.focus();
-            this.selectionStart = startPos + myValue.length;
-            this.selectionEnd = startPos + myValue.length;
-            this.scrollTop = scrollTop;
 
-            e.preventDefault();
-        }
-    });
+process.stdin.setEncoding('utf8');
+
+var args = process.argv.slice(2);
+var switches = parseSwitches(args);
+var data = '';
+
+process.stdin.on('readable', function() {
+    var chunk = process.stdin.read();
+    if (chunk !== null) {
+        data += chunk;
+    }
 });
 
-function createTable() {
+process.stdin.on('end', function() {
+    if (switches.indexOf('c') != -1) {
+        process.stdout.write(createTable(data));
+    }
+    else if (switches.indexOf('p') != -1) {
+        process.stdout.write(parseTable(data));
+    }
+    else {
+        console.log('syntax ' + process.argv[1] + ' -[c|p] ');
+        console.log('      -c create mysql ascii table');
+        console.log('      -p parse mysql ascii table');
+    }
+    process.stdout.write("\n");
+});
+
+
+function parseSwitches(args) {
+    var switches = [];
+    for (var i = 0; i < args.length; i++) {
+        if (args[i][0] == '-') {
+            for  (var ii = 0; ii < args[i].length; ii++) {
+                if (args[i][ii] != '-') {
+                    switches.push(args[i][ii]);
+                }
+            }
+        }
+    }
+    return switches;
+}
+
+function createTable(input, headerStyle, autoFormat, style) {
+    if (!headerStyle) {
+        headerStyle = "top"
+    }
+    if (!autoFormat) {
+        autoFormat = true
+    }
+    if (!style) {
+        style = "0"
+    }
+
     // set up the style
     var cTL, cTM, cTR;
     var cML, cMM, cMR;
@@ -27,25 +62,23 @@ function createTable() {
     var cH, cV;
     var sL, sM, sR;
 
-    var headerStyle = $('#hdr-style').val();
-    var autoFormat = $('#auto-format').is(':checked');
+
     var hasHeaders = headerStyle == "top";
     var spreadSheetStyle = headerStyle == "ssheet";
-    var input = $('#input').val();
 
     var rows = input.split(/[\r\n]+/);
     if (rows[rows.length - 1] == "") {
         // extraneous last row, so delete it
         rows.pop();
     }
-    
+
     if (spreadSheetStyle) {
         hasHeaders = true;
         // add the row numbers
         for (var i = 0; i < rows.length; i++) {
             rows[i] = (i+1) + "\t" + rows[i];
         }
-    }    
+    }
 
     // calculate the max size of each column
     var colLengths = [];
@@ -72,8 +105,8 @@ function createTable() {
             }
         }
     }
-    
-    if (spreadSheetStyle) {    
+
+    if (spreadSheetStyle) {
         // now that we have the number of columns, add the letters
         var colCount = colLengths.length;
         var letterRow = " "; // initial column will have a space
@@ -87,7 +120,6 @@ function createTable() {
         rows.splice(0, 0, letterRow); // add as first row
     }
 
-    var style = $('#style').val();
     switch (style) {
     case "0":
         // ascii mysql style
@@ -198,7 +230,7 @@ function createTable() {
             }
             output += "\n";
         }
-        
+
         // output line separators
         if( ( !hasHeaders && style == "2" & i >= 1 ) || ( hasHeaders && style == 2 & i > 1 ) ) {
             output += sL;
@@ -212,7 +244,7 @@ function createTable() {
                 }
             }
             output += "\n";
-            
+
         }
 
         // output the data
@@ -247,10 +279,7 @@ function createTable() {
             }
         }
     }
-
-    $('#output').val(output);
-    $('#outputText').show();
-    $('#outputTbl').hide();
+    return output;
 }
 
 function outputAsNormalTable(rows, hasHeaders, colLengths) {
@@ -275,14 +304,10 @@ function outputAsNormalTable(rows, hasHeaders, colLengths) {
     $('#outputTbl').show();
 }
 
-function parseTableClick() {
-    var result = parseTable($('#output').val());
-    $('#input').val(result);
-}
 
 function parseTable(table) {
     var lines = table.split('\n');
-    
+
     // first find a seprator line
     var separatorLine = '';
     for (var i = 0; i < lines.length; i++) {
@@ -292,12 +317,12 @@ function parseTable(table) {
             break;
         }
     }
-    
+
     if (separatorLine == '') {
         alert('Error: make sure to include separator lines.');
         return;
     }
-    
+
     // next, find all column indexes
     var colIndexes = [];
     var horizLineChar = separatorLine[1]; // 2nd char is always the repeating char
@@ -307,7 +332,7 @@ function parseTable(table) {
             colIndexes.push(i);
         }
     }
-    
+
     // finally, loop over all items and extract the data
     var result = "";
     for (var i = 0; i < lines.length; i++) {
@@ -315,18 +340,18 @@ function parseTable(table) {
         if (isSepratorLine(line)) {
             continue;
         }
-        
+
         for (var j = 0; j < colIndexes.length - 1; j++) {
             var fromCol = colIndexes[j] + 1;
             var toCol = colIndexes[j+1];
             var data = line.slice(fromCol, toCol);
             data = _trim(data);
             result += data;
-            
+
             if (j < colIndexes.length - 2)
                 result += '\t';
         }
-                
+
         if (i < lines.length - 1)
             result += '\n';
     }
